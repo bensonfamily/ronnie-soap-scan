@@ -5,21 +5,35 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Ronnie Soap Scan</title>
     <style>
-      body {
-        font-family: -apple-system, system-ui, sans-serif;
-        text-align: center;
-        padding: 40px;
-      }
-      .name {
-        font-size: 42px;
-        margin-bottom: 10px;
-      }
-      .text {
-        font-size: 22px;
-      }
-    </style>
-  </head>
-  <body>
+      <body>
+        <div class="name">🧼 Ronnie</div>
+        <div class="text">Scan after soap</div>
+      
+        <div id="status" style="margin-top:18px;font-size:18px;color:#1b5e20;display:none;">
+          ✔ Logged!
+        </div>
+      
+        <script>
+          const statusEl = document.getElementById("status");
+      
+          if (!sessionStorage.getItem("ronnieSoapSent")) {
+            sessionStorage.setItem("ronnieSoapSent", "1");
+      
+            // Show feedback immediately
+            statusEl.style.display = "block";
+      
+            // Fire the webhook (image beacon)
+            const img = new Image();
+            img.src =
+              "https://bfamassist.duckdns.org:8123/api/webhook/ronnie-soap-scan-jgqz_pNdPB6c91AyMaZDyGVB?t=" +
+              Date.now();
+          } else {
+            // If they reload the page in the same tab
+            statusEl.style.display = "block";
+            statusEl.textContent = "✔ Already logged!";
+          }
+        </script>
+      </body>
     <div class="name">🧼 Ronnie</div>
     <div class="text">Scan after soap!</div>
 
