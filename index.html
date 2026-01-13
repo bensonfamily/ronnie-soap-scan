@@ -24,12 +24,14 @@
     <div class="text">Scan after soap!</div>
 
     <script>
-      const url =
-        "https://bfamassist.duckdns.org:8123/api/webhook/ronnie-soap-scan-jgqz_pNdPB6c91AyMaZDyGVB?t=" +
-        Date.now();
-
-      const img = new Image();
-      img.src = url;
+      if (!sessionStorage.getItem("ronnieSoapSent")) {
+        sessionStorage.setItem("ronnieSoapSent", "1");
+    
+        const img = new Image();
+        img.src =
+          "https://bfamassist.duckdns.org:8123/api/webhook/ronnie-soap-scan-jgqz_pNdPB6c91AyMaZDyGVB?t=" +
+          Date.now();
+        }
     </script>
   </body>
 </html>
