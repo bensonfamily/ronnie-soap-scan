@@ -24,24 +24,37 @@
   <script>
     const WEBHOOK =
       "https://bfamassist.duckdns.org:8123/api/webhook/ronnie-soap-scan-jgqz_pNdPB6c91AyMaZDyGVB";
+  
     const statusEl = document.getElementById("status");
   
-    // Allow one webhook hit every 5 seconds on this device/browser.
-    // (Prevents duplicate hits from Safari reload/preload.)
+    // Match this to your HA timer (30 minutes = 1800000)
+    // For testing, you can use 10000 (10 seconds)
+    const COOLDOWN_MS = 1800000;
+  
     const now = Date.now();
     const last = Number(localStorage.getItem("ronnieSoapLast") || "0");
-    const cooldownMs = 5000;
+    const remaining = COOLDOWN_MS - (now - last);
   
-    if (now - last >= cooldownMs) {
+    // Fire webhook every scan (HA decides success vs too soon)
+    const img = new Image();
+    img.src = WEBHOOK + "?t=" + now;
+  
+    if (remaining <= 0) {
+      // SUCCESS
       localStorage.setItem("ronnieSoapLast", String(now));
-      statusEl.style.display = "block";
-      statusEl.textContent = "✔ Logged!";
   
-      const img = new Image();
-      img.src = WEBHOOK + "?t=" + now;
-    } else {
       statusEl.style.display = "block";
-      statusEl.textContent = "⏳ Just logged — scan again in a moment!";
+      statusEl.style.fontSize = "40px";
+      statusEl.style.color = "#1b5e20";
+      statusEl.textContent = "✅ SUCCESS!";
+    } else {
+      // TOO SOON
+      const secondsLeft = Math.ceil(remaining / 1000);
+  
+      statusEl.style.display = "block";
+      statusEl.style.fontSize = "36px";
+      statusEl.style.color = "#f57c00";
+      statusEl.textContent = "⏳ TOO SOON — WAIT!";
     }
   </script>
 </body>
