@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Ronnie Soap Scan</title>
 
   <style>
@@ -15,89 +14,94 @@
       --text:#111;
       --muted:#444;
     }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
+    *{ box-sizing:border-box; }
+    html, body{ height:100%; }
     body{
       margin:0;
       background:var(--bg);
       color:var(--text);
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      overflow: hidden; /* kiosk friendly */
-      -webkit-text-size-adjust: 100%;
+      overflow:hidden; /* kiosk-friendly */
       touch-action: manipulation;
     }
-
     .wrap{
-      height: 100%;
+      height:100%;
       display:flex;
-      flex-direction: column;
+      flex-direction:column;
       align-items:center;
       justify-content:center;
-      padding: 28px 18px;
       text-align:center;
-      gap: 12px;
+      padding: 26px 18px;
+      gap: 14px;
     }
-
     .title{
       font-size: 56px;
       font-weight: 900;
-      letter-spacing: -0.02em;
       line-height: 1.0;
+      letter-spacing: -0.02em;
     }
     .subtitle{
       font-size: 22px;
       color: var(--muted);
       font-weight: 700;
     }
-
     .status{
       display:none;
-      margin-top: 8px;
-      font-size: 54px;
+      margin-top: 6px;
+      font-size: 42px;
       font-weight: 1000;
       line-height: 1.0;
       padding: 14px 18px;
       border-radius: 18px;
       border: 3px solid transparent;
     }
-
-    .countdown{
-      display:none;
-      font-size: 26px;
-      font-weight: 800;
-      color: var(--muted);
-      margin-top: 4px;
-    }
-
     .success{
+      display:inline-block;
       color: var(--green);
       border-color: rgba(27,94,32,.25);
       background: rgba(27,94,32,.06);
     }
-
     .toosoon{
+      display:inline-block;
       color: var(--orange);
       border-color: rgba(245,124,0,.25);
       background: rgba(245,124,0,.08);
     }
-
-    /* bounce animation */
-    .bounce{
-      animation: bounce 650ms ease-out;
+    .countdown{
+      display:none;
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--muted);
+      margin-top: 6px;
     }
-    @keyframes bounce{
-      0%{ transform: scale(0.92); }
-      45%{ transform: scale(1.07); }
-      70%{ transform: scale(0.98); }
-      100%{ transform: scale(1.0); }
+    .btn{
+      margin-top: 10px;
+      width: min(520px, 92vw);
+      padding: 18px 18px;
+      font-size: 28px;
+      font-weight: 900;
+      border-radius: 22px;
+      border: 0;
+      background: var(--green);
+      color: white;
+    }
+    .btn:active{ transform: scale(0.99); }
+    .btn[disabled]{
+      opacity: 0.55;
+      background: #2e7d32;
+    }
+    .hint{
+      margin-top: 8px;
+      font-size: 14px;
+      color:#666;
     }
 
-    /* Confetti container */
-    .confetti {
+    /* confetti */
+    .confetti{
       position: fixed;
       inset: 0;
-      pointer-events: none;
-      overflow: hidden;
+      pointer-events:none;
+      overflow:hidden;
       display:none;
     }
     .confetti i{
@@ -107,45 +111,25 @@
       height: 18px;
       opacity: 0.95;
       border-radius: 2px;
-      transform: rotate(0deg);
       animation: fall 1200ms linear forwards;
     }
     @keyframes fall{
-      to {
-        top: 110vh;
-        transform: rotate(540deg);
-      }
+      to { top: 110vh; transform: rotate(540deg); }
     }
-
-    /* Kiosk friendly button (optional) */
-    .hint{
-      margin-top: 10px;
-      font-size: 14px;
-      color: #666;
-    }
-    .refresh{
-      margin-top: 12px;
-      font-size: 18px;
-      font-weight: 800;
-      padding: 12px 16px;
-      border-radius: 14px;
-      border: 2px solid rgba(0,0,0,.12);
-      background: #fff;
-    }
-    .refresh:active{ transform: scale(0.98); }
   </style>
 </head>
 
 <body>
   <div class="wrap">
     <div class="title">🧼 Ronnie</div>
-    <div class="subtitle">Scan after soap!</div>
+    <div class="subtitle">Wash with soap, then tap the button</div>
+
+    <button id="confirmBtn" class="btn">✅ I washed my hands!</button>
 
     <div id="status" class="status"></div>
     <div id="countdown" class="countdown"></div>
 
-    <button class="refresh" onclick="location.reload()">Tap to refresh</button>
-    <div class="hint">(You can close this tab.)</div>
+    <div class="hint">Tip: You can leave this open. It won’t do anything until you tap.</div>
   </div>
 
   <div id="confetti" class="confetti"></div>
@@ -153,70 +137,43 @@
   <script>
     const WEBHOOK =
       "https://bfamassist.duckdns.org:8123/api/webhook/ronnie-soap-scan-jgqz_pNdPB6c91AyMaZDyGVB";
+    const KEY = "R0nn13SoapKey2026";
 
-    // Match your HA timer:
-    // 30 minutes = 30*60*1000 = 1800000
+    // Match your HA timer: 30 minutes
     const COOLDOWN_MS = 1800000;
 
-    // Prevent Safari reload/preload from firing multiple times within 2 seconds
-    const FIRE_DEBOUNCE_MS = 2000;
+    // prevent double-taps / iOS weirdness
+    const TAP_DEBOUNCE_MS = 1500;
 
+    const btn = document.getElementById("confirmBtn");
     const statusEl = document.getElementById("status");
     const countdownEl = document.getElementById("countdown");
     const confettiEl = document.getElementById("confetti");
 
-    const now = Date.now();
-    const lastSuccess = Number(localStorage.getItem("ronnieSoapLastSuccess") || "0");
-    const lastFire = Number(localStorage.getItem("ronnieSoapLastFire") || "0");
-
-    const remaining = COOLDOWN_MS - (now - lastSuccess);
-
-    // Always hit HA on a scan (so Alexa can say SUCCESS or TOO SOON),
-    // but debounce accidental double-fires.
-    if (now - lastFire >= FIRE_DEBOUNCE_MS) {
-      localStorage.setItem("ronnieSoapLastFire", String(now));
-      const img = new Image();
-      img.src = WEBHOOK + "?k=R0nn13SoapKey2026&t=" + now;
-    }
-
     function fmt(ms){
-      const totalSec = Math.max(0, Math.ceil(ms / 1000));
-      const m = Math.floor(totalSec / 60);
+      const totalSec = Math.max(0, Math.ceil(ms/1000));
+      const m = Math.floor(totalSec/60);
       const s = totalSec % 60;
-      return `${m}:${String(s).padStart(2,"0")}`;
-    }
-
-    function showSuccess(){
-      localStorage.setItem("ronnieSoapLastSuccess", String(Date.now()));
-
-      statusEl.style.display = "inline-block";
-      countdownEl.style.display = "none";
-
-      statusEl.className = "status success bounce";
-      statusEl.textContent = "✅ SUCCESS!";
-
-      launchConfetti();
+      return `${m}:${String(s).padStart(2,'0')}`;
     }
 
     function showTooSoon(msLeft){
       statusEl.style.display = "inline-block";
-      countdownEl.style.display = "block";
-
       statusEl.className = "status toosoon";
       statusEl.textContent = "⏳ TOO SOON";
 
+      countdownEl.style.display = "block";
       countdownEl.textContent = `Try again in ${fmt(msLeft)}`;
 
-      // Live update countdown
       const interval = setInterval(() => {
         const last = Number(localStorage.getItem("ronnieSoapLastSuccess") || "0");
         const ms = COOLDOWN_MS - (Date.now() - last);
         if (ms <= 0) {
           clearInterval(interval);
-          // Turn into a ready state without auto-firing
-          countdownEl.textContent = "Ready to scan ✅";
+          countdownEl.textContent = "Ready ✅";
           statusEl.className = "status success";
           statusEl.textContent = "✅ READY!";
+          btn.disabled = false;
         } else {
           countdownEl.textContent = `Try again in ${fmt(ms)}`;
         }
@@ -226,38 +183,70 @@
     function launchConfetti(){
       confettiEl.innerHTML = "";
       confettiEl.style.display = "block";
-
-      // Create 28 confetti pieces
       const colors = ["#1b5e20","#2e7d32","#f57c00","#ffb300","#1976d2","#7b1fa2","#d32f2f"];
       for (let i=0; i<28; i++){
         const p = document.createElement("i");
-        const left = Math.random() * 100;
-        const delay = Math.random() * 250;
-        const dur = 900 + Math.random() * 700;
-        const w = 8 + Math.random() * 8;
-        const h = 12 + Math.random() * 16;
-
-        p.style.left = left + "vw";
-        p.style.animationDelay = delay + "ms";
-        p.style.animationDuration = dur + "ms";
-        p.style.width = w + "px";
-        p.style.height = h + "px";
+        p.style.left = (Math.random()*100) + "vw";
+        p.style.animationDelay = (Math.random()*250) + "ms";
+        p.style.animationDuration = (900 + Math.random()*700) + "ms";
+        p.style.width = (8 + Math.random()*8) + "px";
+        p.style.height = (12 + Math.random()*16) + "px";
         p.style.background = colors[Math.floor(Math.random()*colors.length)];
-        p.style.transform = `rotate(${Math.random()*180}deg)`;
-
         confettiEl.appendChild(p);
       }
-
-      // Hide confetti after a moment
       setTimeout(() => { confettiEl.style.display = "none"; }, 1400);
     }
 
-    // Decide what to show (visual mirrors HA timer)
-    if (remaining <= 0) {
-      showSuccess();
-    } else {
-      showTooSoon(remaining);
+    function resetUI(){
+      statusEl.style.display = "none";
+      countdownEl.style.display = "none";
+      btn.disabled = false;
     }
+
+    // On load, show READY or TOO SOON based on last success (visual mirror)
+    (function init(){
+      const last = Number(localStorage.getItem("ronnieSoapLastSuccess") || "0");
+      const remaining = COOLDOWN_MS - (Date.now() - last);
+
+      if (remaining > 0) {
+        btn.disabled = true;
+        showTooSoon(remaining);
+      } else {
+        resetUI();
+        statusEl.style.display = "inline-block";
+        statusEl.className = "status success";
+        statusEl.textContent = "✅ READY!";
+      }
+    })();
+
+    btn.addEventListener("click", () => {
+      const now = Date.now();
+      const lastTap = Number(localStorage.getItem("ronnieSoapLastTap") || "0");
+      if (now - lastTap < TAP_DEBOUNCE_MS) return;
+      localStorage.setItem("ronnieSoapLastTap", String(now));
+
+      // Fire HA webhook ONLY on tap
+      const img = new Image();
+      img.src = WEBHOOK + "?k=" + encodeURIComponent(KEY) + "&t=" + now;
+
+      // Update UI immediately for Ronnie (HA will speak)
+      localStorage.setItem("ronnieSoapLastSuccess", String(now));
+      btn.disabled = true;
+
+      statusEl.style.display = "inline-block";
+      statusEl.className = "status success";
+      statusEl.textContent = "✅ SUCCESS!";
+
+      countdownEl.style.display = "block";
+      countdownEl.textContent = "Nice job!";
+
+      launchConfetti();
+
+      // Start countdown display
+      setTimeout(() => {
+        showTooSoon(COOLDOWN_MS);
+      }, 700);
+    });
   </script>
 </body>
 </html>
