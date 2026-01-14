@@ -24,20 +24,24 @@
   <script>
     const WEBHOOK =
       "https://bfamassist.duckdns.org:8123/api/webhook/ronnie-soap-scan-jgqz_pNdPB6c91AyMaZDyGVB";
-
     const statusEl = document.getElementById("status");
-
-    // fire once per tab session
-    if (!sessionStorage.getItem("ronnieSoapSent")) {
-      sessionStorage.setItem("ronnieSoapSent", "1");
+  
+    // Allow one webhook hit every 5 seconds on this device/browser.
+    // (Prevents duplicate hits from Safari reload/preload.)
+    const now = Date.now();
+    const last = Number(localStorage.getItem("ronnieSoapLast") || "0");
+    const cooldownMs = 5000;
+  
+    if (now - last >= cooldownMs) {
+      localStorage.setItem("ronnieSoapLast", String(now));
       statusEl.style.display = "block";
-
-      // "image beacon" webhook call + cache buster
+      statusEl.textContent = "✔ Logged!";
+  
       const img = new Image();
-      img.src = WEBHOOK + "?t=" + Date.now();
+      img.src = WEBHOOK + "?t=" + now;
     } else {
       statusEl.style.display = "block";
-      statusEl.textContent = "✔ Already logged!";
+      statusEl.textContent = "⏳ Just logged — scan again in a moment!";
     }
   </script>
 </body>
