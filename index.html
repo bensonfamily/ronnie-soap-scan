@@ -2,59 +2,261 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Ronnie Soap Scan</title>
+
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#ffffff; margin:0; }
-    .wrap { max-width: 700px; margin: 80px auto; text-align:center; padding: 0 16px; }
-    .name { font-size: 54px; font-weight: 800; line-height: 1.1; }
-    .sub { margin-top: 10px; font-size: 22px; color:#333; }
-    .status { margin-top: 18px; font-size: 20px; font-weight: 700; color:#1b5e20; display:none; }
-    .hint { margin-top: 22px; font-size: 14px; color:#666; }
+    :root{
+      --green:#1b5e20;
+      --orange:#f57c00;
+      --bg:#ffffff;
+      --text:#111;
+      --muted:#444;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      overflow: hidden; /* kiosk friendly */
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+    }
+
+    .wrap{
+      height: 100%;
+      display:flex;
+      flex-direction: column;
+      align-items:center;
+      justify-content:center;
+      padding: 28px 18px;
+      text-align:center;
+      gap: 12px;
+    }
+
+    .title{
+      font-size: 56px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      line-height: 1.0;
+    }
+    .subtitle{
+      font-size: 22px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .status{
+      display:none;
+      margin-top: 8px;
+      font-size: 54px;
+      font-weight: 1000;
+      line-height: 1.0;
+      padding: 14px 18px;
+      border-radius: 18px;
+      border: 3px solid transparent;
+    }
+
+    .countdown{
+      display:none;
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .success{
+      color: var(--green);
+      border-color: rgba(27,94,32,.25);
+      background: rgba(27,94,32,.06);
+    }
+
+    .toosoon{
+      color: var(--orange);
+      border-color: rgba(245,124,0,.25);
+      background: rgba(245,124,0,.08);
+    }
+
+    /* bounce animation */
+    .bounce{
+      animation: bounce 650ms ease-out;
+    }
+    @keyframes bounce{
+      0%{ transform: scale(0.92); }
+      45%{ transform: scale(1.07); }
+      70%{ transform: scale(0.98); }
+      100%{ transform: scale(1.0); }
+    }
+
+    /* Confetti container */
+    .confetti {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      display:none;
+    }
+    .confetti i{
+      position:absolute;
+      top:-10vh;
+      width: 10px;
+      height: 18px;
+      opacity: 0.95;
+      border-radius: 2px;
+      transform: rotate(0deg);
+      animation: fall 1200ms linear forwards;
+    }
+    @keyframes fall{
+      to {
+        top: 110vh;
+        transform: rotate(540deg);
+      }
+    }
+
+    /* Kiosk friendly button (optional) */
+    .hint{
+      margin-top: 10px;
+      font-size: 14px;
+      color: #666;
+    }
+    .refresh{
+      margin-top: 12px;
+      font-size: 18px;
+      font-weight: 800;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 2px solid rgba(0,0,0,.12);
+      background: #fff;
+    }
+    .refresh:active{ transform: scale(0.98); }
   </style>
 </head>
+
 <body>
   <div class="wrap">
-    <div class="name">🧼 Ronnie</div>
-    <div class="sub">Scan after soap!</div>
-    <div id="status" class="status">✔ Logged!</div>
+    <div class="title">🧼 Ronnie</div>
+    <div class="subtitle">Scan after soap!</div>
+
+    <div id="status" class="status"></div>
+    <div id="countdown" class="countdown"></div>
+
+    <button class="refresh" onclick="location.reload()">Tap to refresh</button>
     <div class="hint">(You can close this tab.)</div>
   </div>
+
+  <div id="confetti" class="confetti"></div>
 
   <script>
     const WEBHOOK =
       "https://bfamassist.duckdns.org:8123/api/webhook/ronnie-soap-scan-jgqz_pNdPB6c91AyMaZDyGVB";
-  
-    const statusEl = document.getElementById("status");
-  
-    // Match this to your HA timer (30 minutes = 1800000)
-    // For testing, you can use 10000 (10 seconds)
+
+    // Match your HA timer:
+    // 30 minutes = 30*60*1000 = 1800000
     const COOLDOWN_MS = 1800000;
-  
+
+    // Prevent Safari reload/preload from firing multiple times within 2 seconds
+    const FIRE_DEBOUNCE_MS = 2000;
+
+    const statusEl = document.getElementById("status");
+    const countdownEl = document.getElementById("countdown");
+    const confettiEl = document.getElementById("confetti");
+
     const now = Date.now();
-    const last = Number(localStorage.getItem("ronnieSoapLast") || "0");
-    const remaining = COOLDOWN_MS - (now - last);
-  
-    // Fire webhook every scan (HA decides success vs too soon)
-    const img = new Image();
-    img.src = WEBHOOK + "?t=" + now;
-  
-    if (remaining <= 0) {
-      // SUCCESS
-      localStorage.setItem("ronnieSoapLast", String(now));
-  
-      statusEl.style.display = "block";
-      statusEl.style.fontSize = "40px";
-      statusEl.style.color = "#1b5e20";
+    const lastSuccess = Number(localStorage.getItem("ronnieSoapLastSuccess") || "0");
+    const lastFire = Number(localStorage.getItem("ronnieSoapLastFire") || "0");
+
+    const remaining = COOLDOWN_MS - (now - lastSuccess);
+
+    // Always hit HA on a scan (so Alexa can say SUCCESS or TOO SOON),
+    // but debounce accidental double-fires.
+    if (now - lastFire >= FIRE_DEBOUNCE_MS) {
+      localStorage.setItem("ronnieSoapLastFire", String(now));
+      const img = new Image();
+      img.src = WEBHOOK + "?t=" + now;
+    }
+
+    function fmt(ms){
+      const totalSec = Math.max(0, Math.ceil(ms / 1000));
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${m}:${String(s).padStart(2,"0")}`;
+    }
+
+    function showSuccess(){
+      localStorage.setItem("ronnieSoapLastSuccess", String(Date.now()));
+
+      statusEl.style.display = "inline-block";
+      countdownEl.style.display = "none";
+
+      statusEl.className = "status success bounce";
       statusEl.textContent = "✅ SUCCESS!";
+
+      launchConfetti();
+    }
+
+    function showTooSoon(msLeft){
+      statusEl.style.display = "inline-block";
+      countdownEl.style.display = "block";
+
+      statusEl.className = "status toosoon";
+      statusEl.textContent = "⏳ TOO SOON";
+
+      countdownEl.textContent = `Try again in ${fmt(msLeft)}`;
+
+      // Live update countdown
+      const interval = setInterval(() => {
+        const last = Number(localStorage.getItem("ronnieSoapLastSuccess") || "0");
+        const ms = COOLDOWN_MS - (Date.now() - last);
+        if (ms <= 0) {
+          clearInterval(interval);
+          // Turn into a ready state without auto-firing
+          countdownEl.textContent = "Ready to scan ✅";
+          statusEl.className = "status success";
+          statusEl.textContent = "✅ READY!";
+        } else {
+          countdownEl.textContent = `Try again in ${fmt(ms)}`;
+        }
+      }, 1000);
+    }
+
+    function launchConfetti(){
+      confettiEl.innerHTML = "";
+      confettiEl.style.display = "block";
+
+      // Create 28 confetti pieces
+      const colors = ["#1b5e20","#2e7d32","#f57c00","#ffb300","#1976d2","#7b1fa2","#d32f2f"];
+      for (let i=0; i<28; i++){
+        const p = document.createElement("i");
+        const left = Math.random() * 100;
+        const delay = Math.random() * 250;
+        const dur = 900 + Math.random() * 700;
+        const w = 8 + Math.random() * 8;
+        const h = 12 + Math.random() * 16;
+
+        p.style.left = left + "vw";
+        p.style.animationDelay = delay + "ms";
+        p.style.animationDuration = dur + "ms";
+        p.style.width = w + "px";
+        p.style.height = h + "px";
+        p.style.background = colors[Math.floor(Math.random()*colors.length)];
+        p.style.transform = `rotate(${Math.random()*180}deg)`;
+
+        confettiEl.appendChild(p);
+      }
+
+      // Hide confetti after a moment
+      setTimeout(() => { confettiEl.style.display = "none"; }, 1400);
+    }
+
+    // Decide what to show (visual mirrors HA timer)
+    if (remaining <= 0) {
+      showSuccess();
     } else {
-      // TOO SOON
-      const secondsLeft = Math.ceil(remaining / 1000);
-  
-      statusEl.style.display = "block";
-      statusEl.style.fontSize = "36px";
-      statusEl.style.color = "#f57c00";
-      statusEl.textContent = "⏳ TOO SOON — WAIT!";
+      showTooSoon(remaining);
     }
   </script>
 </body>
